@@ -119,8 +119,26 @@ if __name__ == "__main__":
 
 #для модели
 
-clf = get_classifier()                 # лениво получаем загруженную модель
-top = clf.predict_topk(img, topk=1)    # [('class_name', prob)]
-flower, conf = top[0]
-return PredictionResponse(flower_type=flower, confidence=conf, additional_info={"topk": top})
+# main.py
+import io
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from PIL import Image
+from models import PredictionResponse    # это Pydantic-схема
+from utils.inference import get_classifier  # это наш ML-загрузчик
+
+app = FastAPI()
+
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(file: UploadFile = File(...)):
+    content = await file.read()
+    try:
+        img = Image.open(io.BytesIO(content))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad image")
+
+    clf = get_classifier()               # модель грузится один раз и кэшируется
+    top = clf.predict_topk(img, topk=1)  # [('class_name', prob)]
+    flower, conf = top[0]
+    return PredictionResponse(flower_type=flower, confidence=conf, additional_info={"topk": top})
+
 
