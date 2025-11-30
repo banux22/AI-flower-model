@@ -116,3 +116,11 @@ async def predict_flower(image_data: bytes) -> PredictionResponse:
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+#для модели
+
+clf = get_classifier()                 # лениво получаем загруженную модель
+top = clf.predict_topk(img, topk=1)    # [('class_name', prob)]
+flower, conf = top[0]
+return PredictionResponse(flower_type=flower, confidence=conf, additional_info={"topk": top})
+
