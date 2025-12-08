@@ -1,0 +1,53 @@
+# Python кэш - создается автоматически при импорте модулей
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Виртуальные окружения - для разработки, не для продакшн
+.env
+.venv
+env/
+venv/
+
+# Настройки IDE - индивидуальны для каждого разработчика
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git - уже управляется через git, не нужно в образе
+.git/
+.gitignore
+
+# Файлы Docker самой сборки
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# СИСТЕМНЫЕ ФАЙЛЫ разных ОС:
+.DS_Store           # macOS
+Thumbs.db           # Windows
+desktop.ini         # Windows
+._*                 # macOS resource forks
+.Spotlight-V100     # macOS spotlight
+.Trashes            # macOS trash
+ehthumbs.db         # Windows
+$RECYCLE.BIN/       # Windows recycle bin
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.temp
+
+# Большие файлы данных (если есть)
+*.pth
+*.pkl
+*.h5
+*.zip
+*.tar.gz
+
+# Исключите большие файлы если не используете LFS
+*.pth
+*.pkl
+*.h5
