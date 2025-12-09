@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   flower-api:
-    build: .
+    build: .  # можно упростить без явного context/dockerfile
+    container_name: flower-recognition-api
     ports:
       - "8000:8000"
     volumes:
@@ -11,4 +12,11 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      - CKPT_PATH=static/checkpoints/flower_cnn_checkpoint.pth
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
