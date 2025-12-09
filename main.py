@@ -1,15 +1,17 @@
 import os
 import uuid
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request
+import io
+import base64
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import aiofiles
 from PIL import Image
-import io
 
-from utils.image_processing import process_image, validate_image_format
+from utils.image_processing import process_image, validate_image_format, validate_image_format_from_bytes
 from utils.validators import validate_file_size
+from utils.inference import get_classifier  # ИМПОРТ МОДЕЛИ!
 from models import PredictionResponse, UploadResponse
 
 app = FastAPI(title="Flower Recognition API", version="1.0.0")
@@ -45,15 +47,15 @@ async def upload_flower_image(
         async with aiofiles.open(file_path, "wb") as buffer:
             await buffer.write(processed_image)
         
-        #здесь будет вызов модели
-        #prediction = await predict_flower(processed_image)
+        # ВЫЗОВ МОДЕЛИ - РАСКОММЕНТИРУЙТЕ!
+        prediction = await predict_flower(processed_image)
         
         return UploadResponse(
             success=True,
             message="Изображение успешно загружено и обработано",
             filename=filename,
             file_path=f"/uploads/{filename}",
-            # prediction=prediction  #раскомментировать когда будет готова модель
+            prediction=prediction  # РАСКОММЕНТИРОВАТЬ!
         )
         
     except Exception as e:
@@ -67,7 +69,6 @@ async def capture_flower_image(
         if "," in image_data:
             image_data = image_data.split(",")[1]
         
-        import base64
         image_bytes = base64.b64decode(image_data)
         await validate_image_format_from_bytes(image_bytes)
         processed_image = await process_image(image_bytes)
@@ -77,11 +78,15 @@ async def capture_flower_image(
         async with aiofiles.open(file_path, "wb") as buffer:
             await buffer.write(processed_image)
         
+        # ВЫЗОВ МОДЕЛИ ДЛЯ КАМЕРЫ
+        prediction = await predict_flower(processed_image)
+        
         return UploadResponse(
             success=True,
             message="Фото с камеры успешно обработано",
             filename=filename,
             file_path=f"/uploads/{filename}",
+            prediction=prediction  # ДОБАВИТЬ!
         )
         
     except Exception as e:
@@ -98,47 +103,41 @@ async def get_uploaded_file(filename: str):
     
     return Response(content=content, media_type="image/jpeg")
 
-#заглушка для модели, потом заменить на реализацию
-async def predict_flower(image_data: bytes) -> PredictionResponse:
-    #from your_ai_model import predict
-    #result = predict(image_data)
-    
-    return PredictionResponse(
-        flower_type="Роза",
-        confidence=0.95,
-        additional_info={
-            "latin_name": "Rosa",
-            "family": "Rosaceae",
-            "blooming_season": "Лето"
-        }
-    )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-#для модели
-
-# main.py
-import io
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from PIL import Image
-from models import PredictionResponse    # это Pydantic-схема
-from utils.inference import get_classifier  # это наш ML-загрузчик
-
-app = FastAPI()
-
 @app.post("/predict", response_model=PredictionResponse)
-async def predict(file: UploadFile = File(...)):
+async def predict_endpoint(file: UploadFile = File(...)):
+    """Отдельный эндпоинт только для предсказания"""
     content = await file.read()
     try:
         img = Image.open(io.BytesIO(content))
     except Exception:
-        raise HTTPException(status_code=400, detail="Bad image")
+        raise HTTPException(status_code=400, detail="Неверный формат изображения")
+    
+    prediction = await predict_flower(content)
+    return prediction
 
-    clf = get_classifier()               # модель грузится один раз и кэшируется
-    top = clf.predict_topk(img, topk=1)  # [('class_name', prob)]
-    flower, conf = top[0]
-    return PredictionResponse(flower_type=flower, confidence=conf, additional_info={"topk": top})
+# РЕАЛЬНАЯ РЕАЛИЗАЦИЯ МОДЕЛИ
+async def predict_flower(image_data: bytes) -> PredictionResponse:
+    """Функция предсказания с использованием модели"""
+    try:
+        img = Image.open(io.BytesIO(image_data))
+        clf = get_classifier()  # Модель грузится один раз и кэшируется
+        top = clf.predict_topk(img, topk=1)  # [('class_name', prob)]
+        flower, conf = top[0]
+        
+        return PredictionResponse(
+            flower_type=flower,
+            confidence=conf,
+            additional_info={"topk": top}
+        )
+    except Exception as e:
+        # В случае ошибки возвращаем заглушку
+        print(f"Ошибка при предсказании: {e}")
+        return PredictionResponse(
+            flower_type="Неизвестный цветок",
+            confidence=0.0,
+            additional_info={"error": str(e)}
+        )
 
-
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
